@@ -1,0 +1,6 @@
+# depslib dependency file v1.0
+1489130865 source:c:\users\ubisoft\desktop\matrmultsecv\main.cpp
+	<iostream>
+	<stdlib.h>
+	<time.h>
+
