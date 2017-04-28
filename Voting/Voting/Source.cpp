@@ -1,41 +1,70 @@
-#include<cstdio>
-#include<cstdlib>
-#include<ctime>
-#include"mpi.h"
-
-#define NRPROCESSES 9
-
+#include <mpi.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 int main(int argc, char** argv) {
+
+	int rank, currentVote = -2, leadingVote = -1;
+	int world_size, sender, receiver;
+	int leader = -3;
+	
+
 	MPI_Init(NULL, NULL);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-	int processRank;
-	MPI_Comm_rank(MPI_COMM_WORLD, &processRank);
-	int processSize = NRPROCESSES;
-	MPI_Comm_size(MPI_COMM_WORLD, &processSize);
+	if (rank == 0)
+		sender = world_size - 1;
+	else sender = rank - 1;
 
-	
-	srand(time(NULL));
-	int secretNumber = rand()%100 +1;
-	int receivedNumber = 0;
-	
-	printf("My number is %d and I am process nr. %d \n", secretNumber,processRank);
+	if (rank == world_size - 1)
+		receiver = 0;
+	else receiver = rank + 1;
 
-	if (processRank != 0) {
-		MPI_Recv(&receivedNumber, 1, MPI_INT, processRank - 1, 0, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-		printf("Process %d received number %d from process %d\n", processRank, receivedNumber,
-			processRank - 1);
+
+	srand(time(NULL) + rank);
+	currentVote = rand() % 100 + 1;
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	printf("Process %d has voted as: %d \n", rank, currentVote);
+
+	if (rank != 0) {
+		MPI_Recv(&leadingVote, 1, MPI_INT, sender, 0, MPI_COMM_WORLD, MPI_STATUSES_IGNORE);
+		printf("Process %d received vote %d from process %d\n", rank, leadingVote, sender);
+
+		if (leadingVote > currentVote) {
+			leader = leadingVote;
+			MPI_Send(&leadingVote, 1, MPI_INT, receiver, 0, MPI_COMM_WORLD);
+			printf("Process %d sent vote %d to process %d\n", rank, leadingVote, receiver);
+		}
+		else {
+			MPI_Send(&currentVote, 1, MPI_INT, receiver, 0, MPI_COMM_WORLD);
+			printf("Process %d sent vot %d to process %d\n", rank, currentVote, receiver);
+		}
 	}
-	if (receivedNumber > secretNumber) {
-		MPI_Send(&receivedNumber, 1, MPI_INT, (processRank + 1)%processSize, 0,MPI_COMM_WORLD);
-	}
-	else MPI_Send(&secretNumber, 1, MPI_INT, (processRank + 1)% processSize, 0,MPI_COMM_WORLD);
+	else {
+		leader = currentVote;
+		MPI_Send(&currentVote, 1, MPI_INT, receiver, 0, MPI_COMM_WORLD);
+		printf("Process %d sent vote %d  to process %d\n", rank, currentVote, receiver);
 
-	if (processRank == 0) {
-		MPI_Recv(&receivedNumber, 1, MPI_INT, processSize - 1, 0, MPI_COMM_WORLD,
-			MPI_STATUS_IGNORE);
-		printf("Process %d received number %d from process %d\n", processRank, receivedNumber,
-			processSize - 1);
+		MPI_Recv(&leadingVote, 1, MPI_INT, sender, 0, MPI_COMM_WORLD, MPI_STATUSES_IGNORE);
+		printf("Process %d received vote %d from process %d\n", rank, leadingVote, sender);
+		if (leadingVote > currentVote) {
+			leader = leadingVote;
+			MPI_Send(&currentVote, 1, MPI_INT, receiver, 0, MPI_COMM_WORLD);
+			printf("Process %d sent vote %d  to process %d\n", rank, leadingVote, receiver);
+		}
+		
 	}
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
 	MPI_Finalize();
+
+	if (rank == 0)
+		printf("Leader is %d", leader);
+
+	return 0;
 }
